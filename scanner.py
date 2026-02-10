@@ -1,5 +1,5 @@
 import boto3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 from decimal import Decimal
 
@@ -51,7 +51,7 @@ def find_unattached_volumes():
             'size_gb': size_gb,
             'volume_type': volume_type,
             'created': str(created),
-            'monthly_cost': float(round(monthly_cost, 2))
+            'monthly_cost': round(monthly_cost, 2)
         })
         
         print(f"  WARNING: Found unattached volume: {volume_id} ({size_gb} GB) - ${monthly_cost:.2f}/month")
@@ -65,7 +65,7 @@ def find_unattached_volumes():
 def get_average_cpu(instance_id):
     """Get average CPU utilization over the last 7 days"""
     try:
-        end_time = datetime.utcnow()
+        end_time = datetime.now(timezone.utc)
         start_time = end_time - timedelta(days=7)
         
         response = cloudwatch.get_metric_statistics(
@@ -153,9 +153,24 @@ def save_to_dynamodb(all_findings, total_savings):
     
     scan_date = datetime.now().strftime('%Y-%m-%d')
     
+    # Deep convert all numbers to Decimal for DynamoDB compatibility
+    def convert_to_decimal(obj):
+        if isinstance(obj, list):
+            return [convert_to_decimal(item) for item in obj]
+        elif isinstance(obj, dict):
+            return {key: convert_to_decimal(value) for key, value in obj.items()}
+        elif isinstance(obj, float):
+            return Decimal(str(obj))
+        elif isinstance(obj, int):
+            return Decimal(str(obj))
+        else:
+            return obj
+    
+    findings_for_db = convert_to_decimal(all_findings)
+    
     item = {
         'scan_date': scan_date,
-        'findings': all_findings,
+        'findings': findings_for_db,
         'total_monthly_savings': Decimal(str(round(total_savings, 2))),
         'scan_timestamp': datetime.now().isoformat()
     }
