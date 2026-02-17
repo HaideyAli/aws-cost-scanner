@@ -2,6 +2,7 @@ import boto3
 from datetime import datetime, timedelta, timezone
 import json
 from decimal import Decimal
+from email_notifier import send_email
 
 # AWS clients
 ec2 = boto3.client('ec2', region_name='us-east-2')
@@ -22,6 +23,7 @@ PRICING = {
     }
 }
 
+# EBS volumes
 def find_unattached_volumes():
     """Find all unattached EBS volumes"""
     print("\nScanning for unattached EBS volumes...")
@@ -62,6 +64,7 @@ def find_unattached_volumes():
     return findings, total_waste
 
 
+#CPU for idle instances
 def get_average_cpu(instance_id):
     """Get average CPU utilization over the last 7 days"""
     try:
@@ -92,6 +95,7 @@ def get_average_cpu(instance_id):
         return 0.0
 
 
+# EC2 instances
 def find_idle_instances():
     """Find EC2 instances with low CPU usage"""
     print("\nScanning for idle EC2 instances...")
@@ -146,7 +150,7 @@ def find_idle_instances():
     
     return findings, total_waste
 
-
+# Saving to database
 def save_to_dynamodb(all_findings, total_savings):
     """Save scan results to DynamoDB"""
     print("\nSaving results to DynamoDB...")
@@ -239,6 +243,13 @@ def run_scan():
     
     # Show historical trend
     get_historical_savings()
+    
+    # Send email notification
+    if all_findings:  # Only send if we found waste
+        print("\nSending email notification...")
+        send_email(all_findings, total_savings)
+    else:
+        print("\nNo waste found - skipping email notification")
     
     return all_findings, total_savings
 
